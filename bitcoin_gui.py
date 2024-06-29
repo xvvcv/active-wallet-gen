@@ -16,12 +16,14 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger()
 
 class BitcoinGenerator:
-    def __init__(self, start_range, end_range, use_random, use_seed_phrases, target_address, gui):
+    def __init__(self, start_range, end_range, use_random, use_seed_phrases, use_random_within_range, target_address, gui):
         self.use_random = use_random
         self.use_seed_phrases = use_seed_phrases
+        self.use_random_within_range = use_random_within_range
         self.target_address = target_address
         self.end_range = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140 if use_random and not use_seed_phrases else end_range
         self.current_key = random.randint(0x1, self.end_range) if use_random and not use_seed_phrases else start_range
+        self.start_range = start_range
         self.gui = gui
         self.total_generated = 0
         self.total_no_balance = 0
@@ -35,8 +37,11 @@ class BitcoinGenerator:
         with self.counter_lock:
             if self.current_key > self.end_range or not self.running:
                 return None
-            private_key_int = self.current_key
-            self.current_key = random.randint(0x1, self.end_range) if self.use_random else self.current_key + 1
+            if self.use_random_within_range:
+                private_key_int = random.randint(self.start_range, self.end_range)
+            else:
+                private_key_int = self.current_key
+                self.current_key = random.randint(self.start_range, self.end_range) if self.use_random else self.current_key + 1
             self.total_generated += 1
             logger.info(f"Generated private key: {hex(private_key_int)[2:].zfill(64)}")
         return hex(private_key_int)[2:].zfill(64)
@@ -139,10 +144,15 @@ class BitcoinGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Active Wallet Searcher")
-        self.root.configure(bg="black")
+        self.root.configure(bg="#1A237E")  # Dark navy blue
+
+        self.main_frame = tk.Frame(self.root, bg="#1A237E")  # Dark navy blue
+        self.main_frame.pack(fill="both", expand=True)
 
         self.create_menu()
         self.create_login_screen()
+
+        self.threads = []  # Initialize threads list
 
     def create_menu(self):
         menubar = tk.Menu(self.root)
@@ -161,18 +171,18 @@ class BitcoinGUI:
     def create_login_screen(self):
         self.clear_screen()
 
-        frame = tk.Frame(self.root, bg="black")
+        frame = tk.Frame(self.main_frame, bg="#1A237E")
         frame.pack(padx=20, pady=20)
 
-        tk.Label(frame, text="Username:", fg="white", bg="black").grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        tk.Label(frame, text="Username:", fg="white", bg="#1A237E").grid(row=0, column=0, padx=10, pady=10, sticky="w")
         self.username_entry = tk.Entry(frame)
         self.username_entry.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
 
-        tk.Label(frame, text="Password:", fg="white", bg="black").grid(row=1, column=0, padx=10, pady=10, sticky="w")
+        tk.Label(frame, text="Password:", fg="white", bg="#1A237E").grid(row=1, column=0, padx=10, pady=10, sticky="w")
         self.password_entry = tk.Entry(frame, show="*")
         self.password_entry.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
 
-        tk.Button(frame, text="Login", command=self.authenticate_user, fg="white", bg="black").grid(row=2, column=0, columnspan=2, pady=10)
+        tk.Button(frame, text="Login", command=self.authenticate_user, fg="white", bg="red", activebackground="green", activeforeground="white").grid(row=2, column=0, columnspan=2, pady=10)
 
         frame.grid_columnconfigure(1, weight=1)
 
@@ -188,51 +198,60 @@ class BitcoinGUI:
     def create_main_screen(self):
         self.clear_screen()
 
-        frame = tk.Frame(self.root, bg="black")
+        frame = tk.Frame(self.main_frame, bg="#1A237E")
         frame.pack(padx=20, pady=20, fill="both", expand=True)
 
         self.use_random_var = tk.IntVar()
         self.use_seed_var = tk.IntVar()
+        self.use_random_within_range_var = tk.IntVar()
 
-        tk.Label(frame, text="Start Range (hex):", fg="white", bg="black").grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        tk.Label(frame, text="Start Range (hex):", fg="white", bg="#1A237E").grid(row=0, column=0, padx=10, pady=10, sticky="w")
         self.start_range_entry = tk.Entry(frame)
         self.start_range_entry.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
 
-        tk.Label(frame, text="End Range (hex):", fg="white", bg="black").grid(row=1, column=0, padx=10, pady=10, sticky="w")
+        tk.Label(frame, text="End Range (hex):", fg="white", bg="#1A237E").grid(row=1, column=0, padx=10, pady=10, sticky="w")
         self.end_range_entry = tk.Entry(frame)
         self.end_range_entry.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
 
-        self.random_checkbox = tk.Checkbutton(frame, text="Use Random Range", variable=self.use_random_var, command=self.toggle_random_range, fg="white", bg="black", selectcolor="black")
+        self.random_checkbox = tk.Checkbutton(frame, text="Use Random Range", variable=self.use_random_var, command=self.toggle_random_range, fg="white", bg="#1A237E", selectcolor="black")
         self.random_checkbox.grid(row=2, column=0, columnspan=2, pady=10)
 
-        self.seed_checkbox = tk.Checkbutton(frame, text="Generate Seed Phrases", variable=self.use_seed_var, command=self.toggle_seed_phrase, fg="white", bg="black", selectcolor="black")
-        self.seed_checkbox.grid(row=3, column=0, columnspan=2, pady=10)
+        self.random_within_range_checkbox = tk.Checkbutton(frame, text="Use Random Keys Within Range", variable=self.use_random_within_range_var, fg="white", bg="#1A237E", selectcolor="black")
+        self.random_within_range_checkbox.grid(row=3, column=0, columnspan=2, pady=10)
 
-        tk.Label(frame, text="Number of Threads:", fg="white", bg="black").grid(row=4, column=0, padx=10, pady=10, sticky="w")
+        self.seed_checkbox = tk.Checkbutton(frame, text="Generate Seed Phrases", variable=self.use_seed_var, command=self.toggle_seed_phrase, fg="white", bg="#1A237E", selectcolor="black")
+        self.seed_checkbox.grid(row=4, column=0, columnspan=2, pady=10)
+
+        tk.Label(frame, text="Number of Threads:", fg="white", bg="#1A237E").grid(row=5, column=0, padx=10, pady=10, sticky="w")
         self.threads_entry = tk.Entry(frame)
-        self.threads_entry.grid(row=4, column=1, padx=10, pady=10, sticky="ew")
+        self.threads_entry.grid(row=5, column=1, padx=10, pady=10, sticky="ew")
 
-        tk.Label(frame, text="Target Address:", fg="white", bg="black").grid(row=5, column=0, padx=10, pady=10, sticky="w")
+        tk.Label(frame, text="Target Address:", fg="white", bg="#1A237E").grid(row=6, column=0, padx=10, pady=10, sticky="w")
         self.target_address_entry = tk.Entry(frame)
-        self.target_address_entry.grid(row=5, column=1, padx=10, pady=10, sticky="ew")
+        self.target_address_entry.grid(row=6, column=1, padx=10, pady=10, sticky="ew")
 
-        tk.Button(frame, text="Start", command=self.start_process, fg="white", bg="black").grid(row=6, column=0, columnspan=2, pady=10)
-        tk.Button(frame, text="Stop", command=self.stop_process, fg="white", bg="black").grid(row=7, column=0, columnspan=2, pady=10)
+        tk.Button(frame, text="Start", command=self.start_process, fg="white", bg="red", activebackground="green", activeforeground="white").grid(row=7, column=0, columnspan=2, pady=10)
+        tk.Button(frame, text="Stop", command=self.stop_process, fg="white", bg="red", activebackground="green", activeforeground="white").grid(row=8, column=0, columnspan=2, pady=10)
 
         self.log_text = tk.Text(frame, state='disabled', width=50, height=10, bg="black", fg="white")
-        self.log_text.grid(row=8, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+        self.log_text.grid(row=9, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
 
-        self.status_label = tk.Label(frame, text="Status: Waiting to start", fg="white", bg="black")
-        self.status_label.grid(row=9, column=0, columnspan=2, pady=10, sticky="ew")
+        self.log_text.tag_config("blue", foreground="blue")
+        self.log_text.tag_config("yellow", foreground="yellow")
+        self.log_text.tag_config("green", foreground="green")
+        self.log_text.tag_config("red", foreground="red")
 
-        self.wallet_counter_label = tk.Label(frame, text="Wallets Found with Balance: 0", fg="white", bg="black")
-        self.wallet_counter_label.grid(row=10, column=0, columnspan=2, pady=10, sticky="ew")
+        self.status_label = tk.Label(frame, text="Status: Waiting to start", fg="white", bg="#1A237E")
+        self.status_label.grid(row=10, column=0, columnspan=2, pady=10, sticky="ew")
+
+        self.wallet_counter_label = tk.Label(frame, text="Wallets Found with Balance: 0", fg="white", bg="#1A237E")
+        self.wallet_counter_label.grid(row=11, column=0, columnspan=2, pady=10, sticky="ew")
 
         frame.grid_columnconfigure(1, weight=1)
-        frame.grid_rowconfigure(8, weight=1)
+        frame.grid_rowconfigure(9, weight=1)
 
     def clear_screen(self):
-        for widget in self.root.winfo_children():
+        for widget in self.main_frame.winfo_children():
             widget.destroy()
 
     def toggle_random_range(self):
@@ -246,10 +265,12 @@ class BitcoinGUI:
     def toggle_seed_phrase(self):
         if self.use_seed_var.get():
             self.random_checkbox.config(state='disabled')
+            self.random_within_range_checkbox.config(state='disabled')
             self.start_range_entry.config(state='disabled')
             self.end_range_entry.config(state='disabled')
         else:
             self.random_checkbox.config(state='normal')
+            self.random_within_range_checkbox.config(state='normal')
             self.start_range_entry.config(state='normal')
             self.end_range_entry.config(state='normal')
 
@@ -282,10 +303,11 @@ class BitcoinGUI:
             use_random = False
 
         use_seed_phrases = bool(self.use_seed_var.get())
+        use_random_within_range = bool(self.use_random_within_range_var.get())
         num_threads = int(self.threads_entry.get())
         target_address = self.target_address_entry.get()
 
-        self.generator = BitcoinGenerator(start_range, end_range, use_random, use_seed_phrases, target_address, self)
+        self.generator = BitcoinGenerator(start_range, end_range, use_random, use_seed_phrases, use_random_within_range, target_address, self)
         self.threads = []
 
         for _ in range(num_threads):
