@@ -357,7 +357,7 @@ class BitcoinGUI:
             logger.info(f"Results exported to {file_path}")
 
     def show_about(self):
-        messagebox.showinfo("About", "Active Wallet Searcher v1.0\nDeveloped by [Your Name]")
+        messagebox.showinfo("About", "Active Wallet Searcher v1.0\nDeveloped by xvvcv\nhttps://t.me/ProfessorPercival")
 
 if __name__ == "__main__":
     root = tk.Tk()
