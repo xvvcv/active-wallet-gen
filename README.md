@@ -14,3 +14,4 @@ target address input (will automatically stop the search and export results when
 
 more to come 
 enjoy and dont forget to leave a star :)
+![Annotation 2024-07-01 093406](https://github.com/xvvcv/active-wallet-gen/assets/171422935/0393e3bc-6c44-4e74-9fbe-7c7285133388)
