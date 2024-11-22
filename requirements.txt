@@ -1,0 +1,10 @@
+Flask==2.1.2
+requests==2.27.1
+numpy==1.22.3
+pandas==1.4.2
+cryptography==36.0.1
+pycryptodome==3.14.1
+web3==5.29.0
+pytest==7.1.2
+dotenv==0.19.2
+# Add any other dependencies here
